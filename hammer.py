@@ -1,6 +1,6 @@
 import os
 import requests
-import bs4
+from bs4 import BeautifulSoup
 import logging
 
 def_url = 'http://www.xicidaili.com/nn/1'
@@ -127,7 +127,7 @@ def list_store2file(list_in, path, mode):
 
 def gethtml_from_url(url):
 
-    soup = None
+    bsobj = None
 
     if url == None:
         url = def_url
@@ -138,9 +138,9 @@ def gethtml_from_url(url):
     except Exception as err:
         logging.warning('open url with a problem: %s' %(err))
 
-    soup = bs4.BeautifulSoup(res.text, 'lxml')
+    bsobj = BeautifulSoup(res.text, 'lxml')
 
-    return soup
+    return  bsobj
 
 '''
     parse downloaded html page.
