@@ -15,6 +15,9 @@ site_httpaddr['kuaidaili'] = 'http://www.kuaidaili.com/free/inha/1'
 site_httpaddr['kxdaili'] = 'http://www.kxdaili.com/dailiip/1/1.html#ip'
 site_nicklst = ['xici', 'mimvp', 'kuaidaili', 'kxdaili']
 
+xici_body = 'http://www.xicidaili.com/nn/'
+
+
 logging.basicConfig(level=logging.INFO, format=' %(asctime)s - %(levelname)s - %(message)s')
 
 conn = pymysql.connections.Connection
@@ -57,7 +60,7 @@ def db_close():
     cur.close()
     conn.close()
 
-def parse_xici(obj):
+def parse_xici_perpage(obj):
     bsobj = obj
 
     db_conn()
@@ -89,27 +92,39 @@ def parse_xici(obj):
         '''
             insert sql sentence
         '''
-#        sql = INSERT INTO 'proxy' VALUES ('+'\''+ip+'\''+', '+'\''+port+'\''+', '+'\''+'NULL'+'\''+', '+'\''+prot+'\''+')
-        sql = 'INSERT INTO proxy VALUES (' + ip + ', ' + port + ', ' + 'NULL' + ', ' + prot + ')'
-        db_update(sql)
+        sql = """INSERT INTO proxy (ip, port, country, protocal) VALUES ("%s", "%s", "%s", "%s")"""
+        db_update(sql %(ip, port, "NULL", prot))
+        print('ip:%s, port:%s, country:NULL, prot:%s' %(ip, port, prot))
    
     db_close()
 
-def parse_kaixin(obj):
+def gen_xici_nextpage(order): 
+    body = xici_body
+    next_page_site = body + str(order)
+
+    return next_page_site
+
+def parse_xici_pages(page_num):
+    for num in range(1, page_num):
+        site = gen_xici_nextpage(num)
+        bsobj = get_bsobj(site)
+        parse_xici_perpage(bsobj)
+
+'''def parse_kaixin(obj):
     bsobj = obj
 
     print('hello world')
-
-def parse_site(obj, site_nick):
+'''
+def parse_handler(site_nick, pages):
     if site_nick == 'xici':
-        parse_xici(obj)
-    if site_nick == 'kxdaili':
+        parse_xici_pages(pages)
+'''    if site_nick == 'kxdaili':
         parse_kaixin(obj)
-
-def get_bsobj(site_nick):
+'''
+def get_bsobj(site):
     
     try:
-        r = requests.get(url = site_httpaddr[site_nick], headers=hdr)
+        r = requests.get(url = site, headers=hdr)
         r.raise_for_status()
     except Exception as err:
         logging.critical('open %s failed, reason:%s' %(href, err))
@@ -119,12 +134,10 @@ def get_bsobj(site_nick):
     return bsobj
 
 if __name__ == '__main__':
-    
+   
+    pages = 5
+
     for site in site_nicklst:
-        obj = get_bsobj(site)
-        parse_site(obj, site)
+        parse_handler(site, pages)
 
-    if obj == None:
-        logging.info('bad obj')
-
-    #logging.info('in main:%s' %obj)
+    logging.info('end main')
