@@ -8,15 +8,29 @@ usr_agt = 'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML,
 hdr = {}
 hdr['User-Agent'] = usr_agt
 
+site_nicklst = ['xici', 'kx', 'kuai']
+
 site_httpaddr = {}
 site_httpaddr['xici'] = 'http://www.xicidaili.com/nn/1'
-site_httpaddr['mimvp'] = 'http://proxy.mimvp.com/free.php?proxy=in_hp'
-site_httpaddr['kuaidaili'] = 'http://www.kuaidaili.com/free/inha/1'
-site_httpaddr['kxdaili'] = 'http://www.kxdaili.com/dailiip/1/1.html#ip'
-site_nicklst = ['xici', 'mimvp', 'kuaidaili', 'kxdaili']
+site_httpaddr['kx'] = 'http://www.kxdaili.com/dailiip/1/1.html#ip'
+site_httpaddr['kuai'] = 'http://www.kuaidaili.com/free/inha/1'
+
+'''
+parse_dict = {}
+parse_dict['xici'] = parse_xici
+parse_dict['kx'] = parse_kx
+parse_dict['kuai'] = parse_kuai
+'''
+
+pages_dict = {}
+pages_dict['xici'] = 1
+pages_dict['kx'] = 10
+pages_dict['kuai'] = 10
 
 xici_body = 'http://www.xicidaili.com/nn/'
-
+kx_body = 'http://www.kxdaili.com/dailiip/1/'
+kx_tail = '.html#ip'
+kuai_body = 'http://www.kuaidaili.com/free/inha/'
 
 logging.basicConfig(level=logging.INFO, format=' %(asctime)s - %(levelname)s - %(message)s')
 
@@ -47,10 +61,11 @@ def db_conn():
     Include update()&delete(), depend on sql sentence
 '''
 def db_update(sql):
-#    sql_s = '\"' + sql + '\"'
-    sql_s = sql
-    sta = cur.execute(sql_s)
+    sta = cur.execute(sql)
     conn.commit()
+    return(sta)
+def db_querry(sql):
+    sta = cur.execute(sql)
     return(sta)
 
 def db_close():
@@ -60,7 +75,10 @@ def db_close():
     cur.close()
     conn.close()
 
-def parse_xici_perpage(obj):
+'''
+    for www.xicidaili.com
+'''
+def parse_xici(obj):
     bsobj = obj
 
     db_conn()
@@ -95,49 +113,109 @@ def parse_xici_perpage(obj):
         sql = """INSERT INTO proxy (ip, port, country, protocal) VALUES ("%s", "%s", "%s", "%s")"""
         db_update(sql %(ip, port, "NULL", prot))
         print('ip:%s, port:%s, country:NULL, prot:%s' %(ip, port, prot))
-   
     db_close()
 
-def gen_xici_nextpage(order): 
-    body = xici_body
-    next_page_site = body + str(order)
-
-    return next_page_site
-
-def parse_xici_pages(page_num):
-    for num in range(1, page_num):
-        site = gen_xici_nextpage(num)
-        bsobj = get_bsobj(site)
-        parse_xici_perpage(bsobj)
-
-'''def parse_kaixin(obj):
+def parse_kx(obj):
     bsobj = obj
+    
+    db_conn()
+    bsobj = bsobj.find('tbody')
+    for child in bsobj.find_all('tr'):
+        ip = child.td.get_text()
+        port = child.td.next_sibling.next_sibling.get_text()
+#        prot = child.td.next_sibling.next_sibling.next_sibling.next_sibling.next_sibling.next_sibling.get_text()
+        '''
+            set 'prot' to http manually 
+        '''
+        prot = 'http'
+        sql = """INSERT INTO proxy (ip, port, country, protocal) VALUES ("%s", "%s", "%s", "%s")"""
+        db_update(sql %(ip, port, "NULL", prot))
+        print('ip:%s, port:%s, country:NULL, prot:%s' %(ip, port, prot))
+    db_close()
 
-    print('hello world')
+def parse_kuai(obj):
+    bsobj = obj
+    
+    db_conn()
+    bsobj = bsobj.find('tbody')
+    for child in bsobj.find_all('tr'):
+        ip = child.td.get_text()
+        port = child.td.next_sibling.next_sibling.get_text()
+        '''
+            set 'prot' to http manually 
+        '''
+        prot = 'http'
+        sql = """INSERT INTO proxy (ip, port, country, protocal) VALUES ("%s", "%s", "%s", "%s")"""
+        db_update(sql %(ip, port, "NULL", prot))
+        print('ip:%s, port:%s, country:NULL, prot:%s' %(ip, port, prot))
+    db_close()
+
 '''
-def parse_handler(site_nick, pages):
-    if site_nick == 'xici':
-        parse_xici_pages(pages)
-'''    if site_nick == 'kxdaili':
-        parse_kaixin(obj)
+    placed here to avoid warning. 
+    i am python fresh man, is there a better way to deal with this problem? 
 '''
-def get_bsobj(site):
+parse_dict = {}
+parse_dict['xici'] = parse_xici
+parse_dict['kx'] = parse_kx
+parse_dict['kuai'] = parse_kuai
+
+
+def gen_newpage(order, site_n):
+    if site_n == 'xici':
+        body = xici_body
+        tail = str(order)
+    elif site_n == 'kx':
+        body = kx_body
+        tail = str(order) + kx_tail
+    elif site_n == 'kuai':    
+        body = kuai_body
+        tail = str(order)
+    
+    page_site = body + tail
+    print(page_site)
+    return page_site
+
+def parse_pages(page_num, site_n):
+    for num in range(1, page_num+1):
+        site = gen_newpage(num, site_n)
+        bsobj = get_bsobj(site, None, None)
+        parse_dict[site_n](bsobj)
+
+def get_bsobj(site, proxies, timeout):
     
     try:
-        r = requests.get(url = site, headers=hdr)
+        r = requests.get(url=site, headers=hdr, proxies=proxies, timeout=timeout )
         r.raise_for_status()
     except Exception as err:
-        logging.critical('open %s failed, reason:%s' %(href, err))
+        logging.critical('open %s failed, reason:%s' %(site, err))
         return None
     
     bsobj = BeautifulSoup(r.text, 'lxml')
     return bsobj
 
 if __name__ == '__main__':
-   
-    pages = 5
 
+    '''
     for site in site_nicklst:
-        parse_handler(site, pages)
+        print(site)
+        parse_pages(pages_dict[site], site)
+    '''
+    proxies = {}
+    sql = """SELECT ip, port, country, protocal from proxy"""
+    db_conn()
+    db_querry(sql)
+    for each in cur:
+        site = 'http://' + each[0] + ':' + each[1]
+        proxies['http'] = site
+        obj = get_bsobj('http://www.baidu.com', proxies, 3.05)
+        print(proxies['http'])
+        if obj is None:
+            print('invalue proxy')
+    db_close()
+    
 
+    '''
+    bsobj = get_bsobj('http://www.kuaidaili.com/proxylist/1/')
+    parse_kuai(bsobj)
+    '''
     logging.info('end main')
