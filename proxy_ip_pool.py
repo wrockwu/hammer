@@ -3,6 +3,7 @@ import requests
 import bs4
 import pymysql 
 from bs4 import BeautifulSoup
+import sys, getopt
 
 usr_agt = 'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/51.0.2704.79 Chrome/51.0.2704.79 Safari/537.36'
 hdr = {}
@@ -193,13 +194,11 @@ def get_bsobj(site, proxies, timeout):
     bsobj = BeautifulSoup(r.text, 'lxml')
     return bsobj
 
-if __name__ == '__main__':
-
-    '''
+def start_scrapy():
     for site in site_nicklst:
-        print(site)
         parse_pages(pages_dict[site], site)
-    '''
+    
+def start_check():
     proxies = {}
     sql = """SELECT ip, port, country, protocal from proxy"""
     db_conn()
@@ -212,10 +211,28 @@ if __name__ == '__main__':
         if obj is None:
             print('invalue proxy')
     db_close()
-    
 
-    '''
+def test_api():
     bsobj = get_bsobj('http://www.kuaidaili.com/proxylist/1/')
     parse_kuai(bsobj)
-    '''
+    
+
+if __name__ == '__main__':
+
+    opts, args = getopt.getopt(sys.argv[1:], 'hgct', ['help', 'get', 'check', 'test'])
+    print(opts)
+
+    for op,va in opts:
+        print(op)
+        if op in ['-h', '--help']:
+            print('help')
+        elif op in ['-g', '--get']:
+            print('get proxy')
+        elif op in ['-c', '--check']:
+            print('check proxy')
+        elif op in ['-t', '--test']:
+            print('test api')
+
+    #test_api()
+
     logging.info('end main')
