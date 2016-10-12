@@ -39,40 +39,56 @@ conn = pymysql.connections.Connection
 cur = pymysql.cursors.Cursor
 
 '''
-    table columns:
-    +----------+-------------+------+-----+---------+-------+
-    | Field    | Type        | Null | Key | Default | Extra |
-    +----------+-------------+------+-----+---------+-------+
-    | ip       | varchar(15) | NO   |     | NULL    |       |
-    | port     | varchar(5)  | NO   |     | NULL    |       |
-    | country  | varchar(2)  | YES  |     | NULL    |       |
-    | protocal | varchar(5)  | YES  |     | NULL    |       |
-    +----------+-------------+------+-----+---------+-------+
+    SQL Sentence
+'''
+proxy_insert = """INSERT IGNORE INTO proxy (ip, port, country, protocal, disconntms) VALUES ("%s", "%s", "%s", "%s", "%d")"""
+#proxy_querry = """SELECT ip, port, country, protocal, disconntms from proxy"""
+proxy_querry = """SELECT * FROM proxy"""
+proxy_update = """UPDATE proxy set disconntms=%d WHERE ip='%s'"""
+proxy_del = """DELETE FROM proxy WHERE ip=%s"""
+
+
+'''
+    show columns from database:
+    +------------+-------------+------+-----+---------+-------+
+    | Field      | Type        | Null | Key | Default | Extra |
+    +------------+-------------+------+-----+---------+-------+
+    | ip         | varchar(15) | NO   | PRI | NULL    |       |
+    | port       | varchar(5)  | NO   |     | NULL    |       |
+    | country    | varchar(2)  | YES  |     | NULL    |       |
+    | protocal   | varchar(5)  | YES  |     | NULL    |       |
+    | disconntms | int(1)      | NO   |     | NULL    |       |
+    +------------+-------------+------+-----+---------+-------+
 '''
 def db_conn():
     global conn
     global cur
-    
     conn = pymysql.connect(host='localhost', user='rock', passwd='rock', db='proxydb', charset='utf8')
     cur = conn.cursor()
 
-    cur.execute('select * from proxy')
-
 '''
-    Include update()&delete(), depend on sql sentence
+    Include insert()&update()&delete(), depend on sql sentence
 '''
 def db_update(sql):
-    sta = cur.execute(sql)
-    conn.commit()
-    return(sta)
+    print(cur)
+    try:
+        cur.execute(sql)
+    except Exception as err:
+        logging.critical('db_update failed, reason:%s' %err)
+#    conn.commit()
+    print(cur)
+'''
+    database querry
+'''
 def db_querry(sql):
-    sta = cur.execute(sql)
-    return(sta)
+    try:
+        cur.execute(sql)
+    except Exception as err:
+        logging.critical('db_querry failed, reason:%s' %err)
 
 def db_close():
     global conn
     global cur
-
     cur.close()
     conn.close()
 
@@ -111,9 +127,9 @@ def parse_xici(obj):
         '''
             insert sql sentence
         '''
-        sql = """INSERT INTO proxy (ip, port, country, protocal) VALUES ("%s", "%s", "%s", "%s")"""
-        db_update(sql %(ip, port, "NULL", prot))
-        print('ip:%s, port:%s, country:NULL, prot:%s' %(ip, port, prot))
+        sql = proxy_insert
+        db_update(sql %(ip, port, "NULL", prot, 0))
+        print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
 def parse_kx(obj):
@@ -129,9 +145,9 @@ def parse_kx(obj):
             set 'prot' to http manually 
         '''
         prot = 'http'
-        sql = """INSERT INTO proxy (ip, port, country, protocal) VALUES ("%s", "%s", "%s", "%s")"""
-        db_update(sql %(ip, port, "NULL", prot))
-        print('ip:%s, port:%s, country:NULL, prot:%s' %(ip, port, prot))
+        sql = proxy_insert
+        db_update(sql %(ip, port, "NULL", prot, 0))
+        print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
 def parse_kuai(obj):
@@ -146,9 +162,9 @@ def parse_kuai(obj):
             set 'prot' to http manually 
         '''
         prot = 'http'
-        sql = """INSERT INTO proxy (ip, port, country, protocal) VALUES ("%s", "%s", "%s", "%s")"""
-        db_update(sql %(ip, port, "NULL", prot))
-        print('ip:%s, port:%s, country:NULL, prot:%s' %(ip, port, prot))
+        sql = proxy_insert 
+        db_update(sql %(ip, port, "NULL", prot, 0))
+        print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
 '''
@@ -200,36 +216,48 @@ def start_scrapy():
     
 def start_check():
     proxies = {}
-    sql = """SELECT ip, port, country, protocal from proxy"""
+    sql = proxy_querry 
     db_conn()
     db_querry(sql)
     for each in cur:
-        site = 'http://' + each[0] + ':' + each[1]
+        print(type(cur))
+        ip = each[0]
+        port = each[1]
+        disconntms = each[4]
+        if disconntms > 3:
+            print('unavailable ip:%s, delete it!' %(ip))
+            continue
+
+        site = 'http://' + ip + ':' + port
         proxies['http'] = site
         obj = get_bsobj('http://www.baidu.com', proxies, 3.05)
-        print(proxies['http'])
         if obj is None:
-            print('invalue proxy')
+            print('ip:%s, disconnect times:%d' %(ip, disconntms))
+            sql = proxy_update
+            print(sql %(disconntms+1, ip))
+            db_update(sql %(disconntms+1, ip))
+            print(cur)
+    print("out check")
     db_close()
 
 def test_api():
     bsobj = get_bsobj('http://www.kuaidaili.com/proxylist/1/')
     parse_kuai(bsobj)
     
+config = {
+            "db":"",        
+        }
 
 if __name__ == '__main__':
-
-    opts, args = getopt.getopt(sys.argv[1:], 'hgct', ['help', 'get', 'check', 'test'])
-    print(opts)
+    opts, args = getopt.getopt(sys.argv[1:], 'hgctd:', ['help', 'get', 'check', 'test', 'db='])
 
     for op,va in opts:
-        print(op)
         if op in ['-h', '--help']:
             print('help')
         elif op in ['-g', '--get']:
-            print('get proxy')
+            start_scrapy()
         elif op in ['-c', '--check']:
-            print('check proxy')
+            start_check()
         elif op in ['-t', '--test']:
             print('test api')
 
