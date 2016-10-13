@@ -41,11 +41,11 @@ cur = pymysql.cursors.Cursor
 '''
     SQL Sentence
 '''
-proxy_insert = """INSERT IGNORE INTO proxy (ip, port, country, protocal, disconntms) VALUES ("%s", "%s", "%s", "%s", "%d")"""
-#proxy_querry = """SELECT ip, port, country, protocal, disconntms from proxy"""
-proxy_querry = """SELECT * FROM proxy"""
-proxy_update = """UPDATE proxy set disconntms=%d WHERE ip='%s'"""
-proxy_del = """DELETE FROM proxy WHERE ip=%s"""
+proxy_insert = """INSERT IGNORE INTO proxy (ip, port, country, protocal, disconntms) VALUES ('%s', '%s', '%s', '%s', %s)"""
+proxy_querry = """SELECT ip, port, country, protocal, disconntms from proxy"""
+#proxy_querry = """SELECT * FROM proxy"""
+proxy_update = "UPDATE proxy set disconntms=%s WHERE ip='%s'"
+proxy_del = """DELETE FROM proxy WHERE ip='%s'"""
 
 
 '''
@@ -69,14 +69,14 @@ def db_conn():
 '''
     Include insert()&update()&delete(), depend on sql sentence
 '''
-def db_update(sql):
-    print(cur)
+def db_update(sql, args):
+    print(sql %args)
     try:
-        cur.execute(sql)
+        cur.execute(proxy_update, args)
     except Exception as err:
         logging.critical('db_update failed, reason:%s' %err)
-#    conn.commit()
-    print(cur)
+    conn.commit()
+
 '''
     database querry
 '''
@@ -128,7 +128,7 @@ def parse_xici(obj):
             insert sql sentence
         '''
         sql = proxy_insert
-        db_update(sql %(ip, port, "NULL", prot, 0))
+        db_update(sql, (ip, port, "NULL", prot, 0))
         print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
@@ -146,7 +146,7 @@ def parse_kx(obj):
         '''
         prot = 'http'
         sql = proxy_insert
-        db_update(sql %(ip, port, "NULL", prot, 0))
+        db_update(sql, (ip, port, "NULL", prot, 0))
         print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
@@ -163,7 +163,7 @@ def parse_kuai(obj):
         '''
         prot = 'http'
         sql = proxy_insert 
-        db_update(sql %(ip, port, "NULL", prot, 0))
+        db_update(sql, (ip, port, "NULL", prot, 0))
         print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
@@ -220,7 +220,6 @@ def start_check():
     db_conn()
     db_querry(sql)
     for each in cur:
-        print(type(cur))
         ip = each[0]
         port = each[1]
         disconntms = each[4]
@@ -234,9 +233,8 @@ def start_check():
         if obj is None:
             print('ip:%s, disconnect times:%d' %(ip, disconntms))
             sql = proxy_update
-            print(sql %(disconntms+1, ip))
-            db_update(sql %(disconntms+1, ip))
-            print(cur)
+            tms = disconntms + 1
+            db_update("""UPDATE proxy set disconntms=%s WHERE ip='%s'""", (tms, ip))
     print("out check")
     db_close()
 
