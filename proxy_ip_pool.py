@@ -42,10 +42,10 @@ cur = pymysql.cursors.Cursor
 '''
     SQL Sentence
 '''
-proxy_insert = "INSERT IGNORE INTO proxy (ip, port, country, protocal, disconntms) VALUES (%s, %s, %s, %s, %s)"
-proxy_querry = "SELECT ip, port, country, protocal, disconntms from proxy"
+proxy_insert = "INSERT IGNORE INTO proxy (ip, port, country, protocal, disconntm) VALUES (%s, %s, %s, %s, %s)"
+proxy_querry = "SELECT ip, port, country, protocal, disconntm from proxy"
 #proxy_querry = """SELECT * FROM proxy"""
-proxy_update = "UPDATE proxy set disconntms=%s WHERE ip=%s"
+proxy_update = "UPDATE proxy set disconntm=%s WHERE ip=%s"
 proxy_del = "DELETE FROM proxy WHERE ip=%s"
 
 
@@ -58,13 +58,13 @@ proxy_del = "DELETE FROM proxy WHERE ip=%s"
     | port       | varchar(5)  | NO   |     | NULL    |       |
     | country    | varchar(2)  | YES  |     | NULL    |       |
     | protocal   | varchar(5)  | YES  |     | NULL    |       |
-    | disconntms | int(1)      | NO   |     | NULL    |       |
+    | disconntm | int(1)      | NO   |     | NULL    |       |
     +------------+-------------+------+-----+---------+-------+
 '''
 def db_conn():
     global conn
     global cur
-    conn = pymysql.connect(host='localhost', user='rock', passwd='rock', db='proxydb', charset='utf8')
+    conn = pymysql.connect(host='104.128.81.253', user='proxy', passwd='proxy', db='proxydb', charset='utf8')
     cur = conn.cursor()
 
 '''
@@ -229,8 +229,8 @@ def start_check(to):
     for each in items:
         ip = each[0]
         port = each[1]
-        disconntms = each[4]
-        if disconntms > 1:
+        disconntm = each[4]
+        if disconntm > 1:
             logging.debug('unavailable ip:%s, delete it!' %(ip))
             sql = proxy_del
             db_update(sql, ip)
@@ -241,7 +241,7 @@ def start_check(to):
         obj = get_bsobj('http://www.baidu.com', proxies, timeout=to)
         if obj is None:
             sql = proxy_update
-            tms = disconntms + 1
+            tms = disconntm + 1
             db_update(sql, (tms, ip))
     db_close()
 
@@ -276,5 +276,8 @@ if __name__ == '__main__':
             start_scrapy()
         elif op in ['-c', '--check']:
             start_check(config['timeout'])
+        elif op in ['--test']:
+            db_conn()
+            print('test api')
 
     logging.info('end main')
