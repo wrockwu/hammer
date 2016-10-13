@@ -70,21 +70,25 @@ def db_conn():
     Include insert()&update()&delete(), depend on sql sentence
 '''
 def db_update(sql, args):
-    print(sql %args)
     try:
-        cur.execute(proxy_update, args)
+        sta = cur.execute(sql, args)
     except Exception as err:
         logging.critical('db_update failed, reason:%s' %err)
     conn.commit()
+    
+    print("db_update status:%s" %(sta))
+    return sta
 
 '''
     database querry
 '''
-def db_querry(sql):
-    try:
+def db_querry(sql, args):
+    if args is None:
+        print('in None')
         cur.execute(sql)
-    except Exception as err:
-        logging.critical('db_querry failed, reason:%s' %err)
+    else:
+        print('not in None')
+        cur.execute(sql, args)
 
 def db_close():
     global conn
@@ -218,12 +222,13 @@ def start_check():
     proxies = {}
     sql = proxy_querry 
     db_conn()
-    db_querry(sql)
+    db_querry(sql, None)
     for each in cur:
         ip = each[0]
         port = each[1]
         disconntms = each[4]
         if disconntms > 3:
+            db_update("UPDATE proxy set disconntms=%s", 1)
             print('unavailable ip:%s, delete it!' %(ip))
             continue
 
@@ -231,10 +236,11 @@ def start_check():
         proxies['http'] = site
         obj = get_bsobj('http://www.baidu.com', proxies, 3.05)
         if obj is None:
-            print('ip:%s, disconnect times:%d' %(ip, disconntms))
             sql = proxy_update
             tms = disconntms + 1
-            db_update("""UPDATE proxy set disconntms=%s WHERE ip='%s'""", (tms, ip))
+            #args = (tms, ip)
+            #db_update("UPDATE proxy set disconntms=%s WHERE ip=%s", args)
+            db_update("UPDATE proxy set disconntms=%s", 1)
     print("out check")
     db_close()
 
