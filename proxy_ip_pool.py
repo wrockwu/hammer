@@ -4,6 +4,7 @@ import bs4
 import pymysql 
 from bs4 import BeautifulSoup
 import sys, getopt
+from time import sleep
 
 usr_agt = 'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/51.0.2704.79 Chrome/51.0.2704.79 Safari/537.36'
 hdr = {}
@@ -41,11 +42,11 @@ cur = pymysql.cursors.Cursor
 '''
     SQL Sentence
 '''
-proxy_insert = """INSERT IGNORE INTO proxy (ip, port, country, protocal, disconntms) VALUES ('%s', '%s', '%s', '%s', %s)"""
-proxy_querry = """SELECT ip, port, country, protocal, disconntms from proxy"""
+proxy_insert = "INSERT IGNORE INTO proxy (ip, port, country, protocal, disconntms) VALUES (%s, %s, %s, %s, %s)"
+proxy_querry = "SELECT ip, port, country, protocal, disconntms from proxy"
 #proxy_querry = """SELECT * FROM proxy"""
-proxy_update = "UPDATE proxy set disconntms=%s WHERE ip='%s'"
-proxy_del = """DELETE FROM proxy WHERE ip='%s'"""
+proxy_update = "UPDATE proxy set disconntms=%s WHERE ip=%s"
+proxy_del = "DELETE FROM proxy WHERE ip=%s"
 
 
 '''
@@ -75,20 +76,16 @@ def db_update(sql, args):
     except Exception as err:
         logging.critical('db_update failed, reason:%s' %err)
     conn.commit()
-    
-    print("db_update status:%s" %(sta))
-    return sta
 
 '''
     database querry
 '''
 def db_querry(sql, args):
     if args is None:
-        print('in None')
         cur.execute(sql)
     else:
-        print('not in None')
         cur.execute(sql, args)
+    return cur.fetchall()
 
 def db_close():
     global conn
@@ -133,7 +130,6 @@ def parse_xici(obj):
         '''
         sql = proxy_insert
         db_update(sql, (ip, port, "NULL", prot, 0))
-        print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
 def parse_kx(obj):
@@ -151,7 +147,6 @@ def parse_kx(obj):
         prot = 'http'
         sql = proxy_insert
         db_update(sql, (ip, port, "NULL", prot, 0))
-        print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
 def parse_kuai(obj):
@@ -168,7 +163,6 @@ def parse_kuai(obj):
         prot = 'http'
         sql = proxy_insert 
         db_update(sql, (ip, port, "NULL", prot, 0))
-        print('ip:%s, port:%s, country:NULL, prot:%s, disconntms:0' %(ip, port, prot))
     db_close()
 
 '''
@@ -181,7 +175,7 @@ parse_dict['kx'] = parse_kx
 parse_dict['kuai'] = parse_kuai
 
 
-def gen_newpage(order, site_n):
+def gen_pageaddr(order, site_n):
     if site_n == 'xici':
         body = xici_body
         tail = str(order)
@@ -198,9 +192,14 @@ def gen_newpage(order, site_n):
 
 def parse_pages(page_num, site_n):
     for num in range(1, page_num+1):
-        site = gen_newpage(num, site_n)
+        site = gen_pageaddr(num, site_n)
         bsobj = get_bsobj(site, None, None)
         parse_dict[site_n](bsobj)
+        '''
+            sleep a piece of time to avoid blocked
+            sleep 1s nowdays
+        '''
+        sleep(1)
 
 def get_bsobj(site, proxies, timeout):
     
@@ -218,30 +217,32 @@ def start_scrapy():
     for site in site_nicklst:
         parse_pages(pages_dict[site], site)
     
-def start_check():
+def start_check(to):
     proxies = {}
     sql = proxy_querry 
     db_conn()
-    db_querry(sql, None)
-    for each in cur:
+    items = db_querry(sql, None)
+
+    if to == 0:
+        to = 1
+
+    for each in items:
         ip = each[0]
         port = each[1]
         disconntms = each[4]
-        if disconntms > 3:
-            db_update("UPDATE proxy set disconntms=%s", 1)
-            print('unavailable ip:%s, delete it!' %(ip))
+        if disconntms > 1:
+            logging.debug('unavailable ip:%s, delete it!' %(ip))
+            sql = proxy_del
+            db_update(sql, ip)
             continue
-
+        
         site = 'http://' + ip + ':' + port
         proxies['http'] = site
-        obj = get_bsobj('http://www.baidu.com', proxies, 3.05)
+        obj = get_bsobj('http://www.baidu.com', proxies, timeout=to)
         if obj is None:
             sql = proxy_update
             tms = disconntms + 1
-            #args = (tms, ip)
-            #db_update("UPDATE proxy set disconntms=%s WHERE ip=%s", args)
-            db_update("UPDATE proxy set disconntms=%s", 1)
-    print("out check")
+            db_update(sql, (tms, ip))
     db_close()
 
 def test_api():
@@ -249,22 +250,31 @@ def test_api():
     parse_kuai(bsobj)
     
 config = {
-            "db":"",        
+            "db":"",       
+            "timeout":0,
         }
 
 if __name__ == '__main__':
-    opts, args = getopt.getopt(sys.argv[1:], 'hgctd:', ['help', 'get', 'check', 'test', 'db='])
+    opts, args = getopt.getopt(sys.argv[1:], 'hgcd:t:', ['help', 'get', 'check', \
+                                                        'test', 'db=', 'timeout=', 'test'])
+
+    for op,va in opts:
+        if op in ['-t', '--timeout']:
+            config['timeout'] = int(va)
 
     for op,va in opts:
         if op in ['-h', '--help']:
-            print('help')
+            print('-h, --help')
+            print('show this context')
+            print('-g, --get')
+            print('start scrapy, get ip from public web site')
+            print('-c, --check')
+            print('check ip valuable or not')
+            print('-t, --timeout')
+            print('set timeout value, we use this value in check process')
         elif op in ['-g', '--get']:
             start_scrapy()
         elif op in ['-c', '--check']:
-            start_check()
-        elif op in ['-t', '--test']:
-            print('test api')
-
-    #test_api()
+            start_check(config['timeout'])
 
     logging.info('end main')
