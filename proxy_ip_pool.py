@@ -5,6 +5,9 @@ import pymysql
 from bs4 import BeautifulSoup
 import sys, getopt
 from time import sleep
+import time
+from datetime import datetime
+import random
 
 usr_agt = 'User-Agent:Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/51.0.2704.79 Chrome/51.0.2704.79 Safari/537.36'
 hdr = {}
@@ -34,7 +37,8 @@ kx_body = 'http://www.kxdaili.com/dailiip/1/'
 kx_tail = '.html#ip'
 kuai_body = 'http://www.kuaidaili.com/free/inha/'
 
-logging.basicConfig(level=logging.INFO, format=' %(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format=' %(asctime)s - %(levelname)s - %(message)s', \
+                    filename='proxy.log', filemode='w')
 
 conn = pymysql.connections.Connection
 cur = pymysql.cursors.Cursor
@@ -58,7 +62,7 @@ proxy_del = "DELETE FROM proxy WHERE ip=%s"
     | port       | varchar(5)  | NO   |     | NULL    |       |
     | country    | varchar(2)  | YES  |     | NULL    |       |
     | protocal   | varchar(5)  | YES  |     | NULL    |       |
-    | disconntm | int(1)      | NO   |     | NULL    |       |
+    | disconntm  | int(1)      | NO   |     | NULL    |       |
     +------------+-------------+------+-----+---------+-------+
 '''
 def db_conn():
@@ -187,7 +191,6 @@ def gen_pageaddr(order, site_n):
         tail = str(order)
     
     page_site = body + tail
-    print(page_site)
     return page_site
 
 def parse_pages(page_num, site_n):
@@ -245,6 +248,24 @@ def start_check(to):
             db_update(sql, (tms, ip))
     db_close()
 
+random_sec = random.randint(1,1)*60*60
+regulate_sec = 0.1*60*60
+def run_background():
+    '''
+        scrapy sleep a random period, between 8~12h
+        check sleep 1h
+    '''
+    scrapy_sleep_sec = random_sec 
+    check_sleep_sec = regulate_sec 
+    skip_sec = scrapy_sleep_sec
+    while True:
+        if skip_sec == 0:
+            start_scrapy()
+            skip_sec = random_sec 
+        start_check(config['timeout'])
+        sleep(check_sleep_sec)
+        skip_sec = skip_sec - check_sleep_sec 
+
 def test_api():
     bsobj = get_bsobj('http://www.kuaidaili.com/proxylist/1/')
     parse_kuai(bsobj)
@@ -255,8 +276,9 @@ config = {
         }
 
 if __name__ == '__main__':
-    opts, args = getopt.getopt(sys.argv[1:], 'hgcd:t:', ['help', 'get', 'check', \
-                                                        'test', 'db=', 'timeout=', 'test'])
+    opts, args = getopt.getopt(sys.argv[1:], 'hgcpd:t:', ['help', 'get', 'check', \
+                                                        'test', 'db=', 'timeout=',\
+                                                        'permanent'])
 
     for op,va in opts:
         if op in ['-t', '--timeout']:
@@ -272,12 +294,16 @@ if __name__ == '__main__':
             print('check ip valuable or not')
             print('-t, --timeout')
             print('set timeout value, we use this value in check process')
+            print('-p, --permanent')
+            print('permanent run mode')
         elif op in ['-g', '--get']:
             start_scrapy()
         elif op in ['-c', '--check']:
             start_check(config['timeout'])
         elif op in ['--test']:
-            db_conn()
+            run_background()
             print('test api')
+        elif op in ['-p', '--permanent']:
+            run_background()
 
     logging.info('end main')
