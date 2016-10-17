@@ -107,6 +107,8 @@ def parse_xici(obj):
         find ip_list in html
     '''
     bsobj = bsobj.find('table', {'id':'ip_list'})
+    if bsobj is None:
+        return
     '''
         remove first tag, invalue data in this tag   
     '''
@@ -140,7 +142,7 @@ def parse_kx(obj):
     bsobj = obj
     
     bsobj = bsobj.find('tbody')
-    if bsobj == None:
+    if bsobj is None:
         return
 
     db_conn()
@@ -160,7 +162,7 @@ def parse_kuai(obj):
     bsobj = obj
     
     bsobj = bsobj.find('tbody')
-    if bsobj = None:
+    if bsobj is None:
         return
     
     db_conn()
