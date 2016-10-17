@@ -68,7 +68,7 @@ proxy_del = "DELETE FROM proxy WHERE ip=%s"
 def db_conn():
     global conn
     global cur
-    conn = pymysql.connect(host='104.128.81.253', user='proxy', passwd='proxy', db='proxydb', charset='utf8')
+    conn = pymysql.connect(host='localhost', user='proxy', passwd='proxy', db='proxydb', charset='utf8')
     cur = conn.cursor()
 
 '''
@@ -103,7 +103,6 @@ def db_close():
 def parse_xici(obj):
     bsobj = obj
 
-    db_conn()
     '''
         find ip_list in html
     '''
@@ -113,6 +112,7 @@ def parse_xici(obj):
     '''
     bsobj.tr.decompose()
  
+    db_conn()
     for child in bsobj.find_all('tr'):
         '''
             ip
@@ -139,8 +139,11 @@ def parse_xici(obj):
 def parse_kx(obj):
     bsobj = obj
     
-    db_conn()
     bsobj = bsobj.find('tbody')
+    if bsobj == None:
+        return
+
+    db_conn()
     for child in bsobj.find_all('tr'):
         ip = child.td.get_text()
         port = child.td.next_sibling.next_sibling.get_text()
@@ -156,8 +159,11 @@ def parse_kx(obj):
 def parse_kuai(obj):
     bsobj = obj
     
-    db_conn()
     bsobj = bsobj.find('tbody')
+    if bsobj = None:
+        return
+    
+    db_conn()
     for child in bsobj.find_all('tr'):
         ip = child.td.get_text()
         port = child.td.next_sibling.next_sibling.get_text()
@@ -248,8 +254,8 @@ def start_check(to):
             db_update(sql, (tms, ip))
     db_close()
 
-random_sec = random.randint(1,1)*60*60
-regulate_sec = 0.1*60*60
+random_sec = random.randint(8,12)*60*60
+regulate_sec = 1*60*60
 def run_background():
     '''
         scrapy sleep a random period, between 8~12h
@@ -305,5 +311,7 @@ if __name__ == '__main__':
             print('test api')
         elif op in ['-p', '--permanent']:
             run_background()
+        elif op == ' ':
+            print('please refer to usage')
 
     logging.info('end main')
